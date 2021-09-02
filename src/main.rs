@@ -4,23 +4,28 @@
 
 use cortex_m_rt::entry;
 use embedded_hal::digital::v2::OutputPin;
-use embedded_time::fixed_point::FixedPoint;
-use rp2040_hal as hal;
+use embedded_time::{
+    fixed_point::FixedPoint,
+    rate::Extensions,
+};
 
-use hal::{
+
+use rp2040_hal::{
     clocks::{init_clocks_and_plls, Clock},
     pac,
     sio::Sio,
     watchdog::Watchdog,
+    gpio::FunctionI2C,
+    i2c::I2C,
 };
 
 use core::panic::PanicInfo;
 
+const SYS_HZ: u32 = 125_000_000;
+
 #[link_section = ".boot2"]
 #[used]
 pub static BOOT2: [u8; 0x100] = rp2040_boot2::BOOT_LOADER;
-
-const DELAY: u32 = 50;
 
 #[entry]
 fn main() -> ! {
@@ -45,7 +50,7 @@ fn main() -> ! {
 
     let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().integer());
 
-    let pins = hal::gpio::Pins::new(
+    let pins = rp2040_hal::gpio::Pins::new(
         pac.IO_BANK0,
         pac.PADS_BANK0,
         sio.gpio_bank0,
@@ -54,12 +59,23 @@ fn main() -> ! {
 
     let mut led_pin = pins.gpio25.into_push_pull_output();
 
-    loop {
-        led_pin.set_high().unwrap();
-        delay.delay_ms(DELAY);
+    let sda_pin = pins.gpio0.into_mode::<FunctionI2C>();
+    let scl_pin = pins.gpio1.into_mode::<FunctionI2C>();
 
-        led_pin.set_low().unwrap();
-        delay.delay_ms(DELAY);
+    let mut i2c = I2C::i2c0(
+        pac.I2C0,
+        sda_pin,
+        scl_pin,
+        100.kHz(),
+        &mut pac.RESETS,
+        SYS_HZ.Hz(),
+    );
+
+    loop {
+        delay.delay_ms(5000);
+        am2320::measure(&mut i2c).ok().unwrap();
+
+        led_pin.set_high().unwrap();
     }
 }
 

@@ -13,3 +13,5 @@ embedded-time = "0.12"
 
 rp2040-hal = "0.2"
 rp2040-boot2 = "0.1"
+
+am2320 = { path = "../am2320-rs" }
